@@ -7,7 +7,7 @@ import sys
 import threading
 
 APP_NAME = "Clickwave"
-APP_VERSION = "4.1"
+APP_VERSION = "4.1.1"
 APP_TAGLINE = "Click sounds for your inputs"
 
 # When bundled into a standalone .exe with PyInstaller, bundled files
@@ -29,6 +29,11 @@ PACKS_DIR = os.path.join(APPDATA_DIR, "packs")
 LEGACY_SOUNDS_DIR = os.path.join(APPDATA_DIR, "sounds")   # v2 custom sounds
 LOG_PATH = os.path.join(APPDATA_DIR, "clickwave.log")
 OLD_APPDATA_DIR = os.path.join(_ROAMING, "GD Click")      # before the rename
+
+REPO_URL = "https://github.com/buildsbyvic/Clickwave"
+RELEASES_URL = REPO_URL + "/releases"
+ISSUES_URL = REPO_URL + "/issues"
+API_LATEST_URL = "https://api.github.com/repos/buildsbyvic/Clickwave/releases/latest"
 
 log = logging.getLogger("clickwave")
 

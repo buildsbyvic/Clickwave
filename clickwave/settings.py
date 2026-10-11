@@ -77,6 +77,7 @@ GLOBAL_DEFAULTS = {
     "onboarded": False,
     "best_cps": 0,
     "best_test": 0.0,
+    "check_updates": True,      # ask GitHub for the latest version number on launch
 }
 
 

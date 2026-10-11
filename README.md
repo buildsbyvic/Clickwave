@@ -57,8 +57,11 @@ Hotkeys still accept macro input (a Stream Deck toggling Clickwave isn't cheatin
 
 ## Download & run
 
-Grab `Clickwave.exe` from the [Releases](../../releases) page and run it - no installer. Settings and packs live in
-`%APPDATA%\Clickwave`.
+**[⬇ Download Clickwave.exe](https://github.com/buildsbyvic/Clickwave/releases/latest/download/Clickwave.exe)**
+(latest version) - or browse all versions on the [Releases page](https://github.com/buildsbyvic/Clickwave/releases).
+
+Run it - no installer. Settings and packs live in `%APPDATA%\Clickwave`. Clickwave can tell you when a new version
+is out (*Settings > About*; it only asks GitHub for the latest version number, and you can turn it off).
 
 > Windows SmartScreen or antivirus may warn about a new, unsigned app that listens to the keyboard (it has to, to
 > click when you press a key). The full source is here to inspect, and you can build the exe yourself.

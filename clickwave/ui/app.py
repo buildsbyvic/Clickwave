@@ -11,8 +11,9 @@ from tkinter import filedialog
 
 from .. import sounds
 from ..audio import AudioManager
+from .. import updates
 from ..common import (
-    APP_NAME, APP_TAGLINE, APP_VERSION, APPDATA_DIR, ICON_PATH, LOG_PATH, LOGO_PATH, PACKS_DIR, log,
+    ISSUES_URL, REPO_URL, APP_NAME, APP_TAGLINE, APP_VERSION, APPDATA_DIR, ICON_PATH, LOG_PATH, LOGO_PATH, PACKS_DIR, log,
     migrate_from_gd_click, setup_logging,
 )
 from ..decode import AUDIO_EXTENSIONS, NEEDS_WEB_MEDIA_EXTENSIONS, DecodeError
@@ -97,6 +98,9 @@ class App:
         root.bind("<Unmap>", self._on_unmap)
         root.bind("<Configure>", self._on_configure)
 
+        self.update_text = self.update_color = self.update_url = None
+        if self.settings["check_updates"]:
+            root.after(4000, lambda: self.check_updates(manual=False))
         if self.settings["start_on_launch"]:
             self.set_running(True, feedback=False)
         self._poll()
@@ -508,8 +512,23 @@ class App:
 
         inner, head = self.card(page, "About")
         label(head, f"{APP_NAME} {APP_VERSION}", font="tiny", fg=T.faint).pack(side="right")
+        web = tk.Frame(inner, bg=T.card)
+        web.pack(fill="x", pady=(S(10), 0))
+        RoundedButton(web, "GitHub page", lambda: winutil.open_path(REPO_URL), height=30, font=F["small"],
+                      icon=I.open).pack(side="left")
+        RoundedButton(web, "Report a problem", lambda: winutil.open_path(ISSUES_URL), height=30,
+                      font=F["small"]).pack(side="left", padx=(S(8), 0))
+        RoundedButton(web, "Check for updates", lambda: self.check_updates(manual=True), height=30,
+                      font=F["small"], icon=I.refresh).pack(side="left", padx=(S(8), 0))
+        self.w["update_status"] = label(inner, self.update_text or "", font="tiny",
+                                        fg=self.update_color or T.faint, justify="left", wraplength=S(330))
+        self.w["update_status"].pack(anchor="w", pady=(S(6), 0))
+        if self.update_url:
+            self._make_update_link()
+        self.toggle_row(inner, "Check for updates on launch", "check_updates",
+                        "Only asks GitHub for the latest version number")
         btns = tk.Frame(inner, bg=T.card)
-        btns.pack(fill="x", pady=(S(10), 0))
+        btns.pack(fill="x", pady=(S(12), 0))
         RoundedButton(btns, "Data folder", lambda: winutil.open_path(APPDATA_DIR), height=30,
                       font=F["small"], icon=I.folder).pack(side="left")
         RoundedButton(btns, "Log", self.open_log, height=30, font=F["small"], icon=I.open).pack(
@@ -1493,6 +1512,44 @@ class App:
         self.w["output_status"].config(text=text, fg=color, cursor="")
         self.w["output_status"].unbind("<ButtonRelease-1>")
         self.update_latency()
+
+    # ---------------- updates ----------------
+    def check_updates(self, manual=True):
+        if manual:
+            self._set_update_status("Checking GitHub\u2026", T.muted)
+
+        def work():
+            try:
+                info = updates.check()
+                self.root.after(0, lambda: self._update_result(info, manual))
+            except OSError as e:
+                msg = str(e)
+                if manual:
+                    self.root.after(0, lambda: self._set_update_status(f"Couldn't check: {msg}.", T.warn))
+                log.info("Update check failed: %s", msg)
+        import threading
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_result(self, info, manual):
+        if info.newer:
+            self.update_url = info.url
+            self._set_update_status(f"\u2b06 Clickwave {info.latest} is available (you have {APP_VERSION}). "
+                                    "Click to open the download page.", T.ok)
+            self._make_update_link()
+            self.notify_inline(f"Update available: Clickwave {info.latest} (Settings > About)")
+        elif manual:
+            self._set_update_status(f"\u2713 You're up to date ({APP_VERSION}).", T.ok)
+
+    def _set_update_status(self, text, color):
+        self.update_text, self.update_color = text, color
+        if "update_status" in self.w and self.w["update_status"].winfo_exists():
+            self.w["update_status"].config(text=text, fg=color)
+
+    def _make_update_link(self):
+        lbl = self.w.get("update_status")
+        if lbl is not None and self.update_url:
+            lbl.configure(cursor="hand2")
+            lbl.bind("<ButtonRelease-1>", lambda e: winutil.open_path(self.update_url))
 
     def check_outputs(self):
         """Tell the user when a chosen output couldn't be opened."""
