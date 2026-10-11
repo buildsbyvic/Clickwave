@@ -81,6 +81,7 @@ class App:
         self._last_geom = None
         self._quitting = False
         self.w = {}                  # widget references for the current build
+        self.update_text = self.update_color = self.update_url = None   # read by build_settings
 
         self.apply_engine_config()
         self.apply_devices()
@@ -98,7 +99,6 @@ class App:
         root.bind("<Unmap>", self._on_unmap)
         root.bind("<Configure>", self._on_configure)
 
-        self.update_text = self.update_color = self.update_url = None
         if self.settings["check_updates"]:
             root.after(4000, lambda: self.check_updates(manual=False))
         if self.settings["start_on_launch"]:
