@@ -1,0 +1,29 @@
+name: Report a problem
+description: Something isn't working right
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping make Clickwave better!
+        **Easiest way:** in Clickwave open **Settings → About → Report a problem** - it fills in the technical details for you.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: In your own words - what were you doing, and what went wrong?
+      placeholder: "e.g. Clicks stop playing after I alt-tab into my game."
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Filled in automatically by the "Report a problem" button in Clickwave. If you opened this page yourself, you can leave it empty.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else? (optional)
+      description: Screenshots, a short video, or steps to make it happen again.

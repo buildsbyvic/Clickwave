@@ -7,7 +7,7 @@ import sys
 import threading
 
 APP_NAME = "Clickwave"
-APP_VERSION = "4.1.1"
+APP_VERSION = "4.1.2"
 APP_TAGLINE = "Click sounds for your inputs"
 
 # When bundled into a standalone .exe with PyInstaller, bundled files

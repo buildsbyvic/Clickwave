@@ -516,8 +516,10 @@ class App:
         web.pack(fill="x", pady=(S(10), 0))
         RoundedButton(web, "GitHub page", lambda: winutil.open_path(REPO_URL), height=30, font=F["small"],
                       icon=I.open).pack(side="left")
-        RoundedButton(web, "Report a problem", lambda: winutil.open_path(ISSUES_URL), height=30,
-                      font=F["small"]).pack(side="left", padx=(S(8), 0))
+        report = RoundedButton(web, "Report a problem", self.report_problem, height=30, font=F["small"])
+        report.pack(side="left", padx=(S(8), 0))
+        Tooltip(report, "Opens a short form on GitHub with your Clickwave version and setup already\n"
+                        "filled in - just describe what happened. Nothing is sent until you submit.")
         RoundedButton(web, "Check for updates", lambda: self.check_updates(manual=True), height=30,
                       font=F["small"], icon=I.refresh).pack(side="left", padx=(S(8), 0))
         self.w["update_status"] = label(inner, self.update_text or "", font="tiny",
@@ -1512,6 +1514,53 @@ class App:
         self.w["output_status"].config(text=text, fg=color, cursor="")
         self.w["output_status"].unbind("<ButtonRelease-1>")
         self.update_latency()
+
+    # ---------------- problem reports ----------------
+    def diagnostics(self, log_lines=15):
+        """A short, privacy-friendly summary for bug reports."""
+        import platform
+        s, e, a = self.settings, self.engine, self.audio
+        home = os.path.expanduser("~")
+        lats = [d.latency_ms for d in e._devices if getattr(d, "latency_ms", None)]
+        outs = []
+        for key in self.output_keys:
+            role = "you" if key == e.cue_key else "stream"
+            outs.append(f"{a.name_of(key) or key} [{role}]")
+        lines = [
+            f"Clickwave {APP_VERSION} ({'exe' if getattr(sys, 'frozen', False) else 'source'})",
+            f"Windows {platform.version()} ({platform.machine()})",
+            f"Audio: {a.backend}" + (f", ~{max(lats):.0f} ms" if lats else "") +
+            f" | outputs: {', '.join(outs) or 'none'} | {len(a.devices)} devices found",
+            f"Listening: {'yes' if e.running else 'no'} | inputs: {len(s.p('inputs'))} | pack: "
+            f"{'custom' if s.p('pack') != 'Default' else 'Default'} | dynamics: {'on' if s.p('dynamics') else 'off'}"
+            f" | app filter: {'on' if s.p('app_filter') else 'off'}",
+            f"Overlay: {'on' if s['overlay'] else 'off'} | tray: {'on' if s['tray'] else 'off'} | "
+            f"ignored simulated presses: {e.injected_ignored}",
+        ]
+        try:
+            with open(LOG_PATH, "r", encoding="utf-8", errors="replace") as f:
+                tail = f.readlines()[-log_lines:]
+            if tail:
+                lines.append("Recent log:")
+                lines += [ln.rstrip()[:220] for ln in tail]
+        except OSError:
+            lines.append("Recent log: (none)")
+        # Mask the Windows user name in any paths.
+        return "\n".join(lines).replace(home, "%USERPROFILE%")
+
+    def report_problem(self):
+        from urllib.parse import quote
+        lines = 15
+        while True:
+            diag = self.diagnostics(lines)
+            url = f"{ISSUES_URL}/new?template=bug_report.yml&diagnostics={quote(diag)}"
+            if len(url) < 7000 or lines == 0:
+                break
+            lines = max(0, lines - 5)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(diag)
+        winutil.open_path(url)
+        self.notify_inline("Report form opened in your browser - details are filled in (and copied)")
 
     # ---------------- updates ----------------
     def check_updates(self, manual=True):

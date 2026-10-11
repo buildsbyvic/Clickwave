@@ -1,0 +1,17 @@
+name: Suggest an idea
+description: A feature or improvement you'd like to see
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Clickwave to do?
+      placeholder: "e.g. Let me pick a different sound for my left and right mouse buttons."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help you? (optional)
+      description: Your setup or the situation where you'd use it.

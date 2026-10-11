@@ -105,6 +105,12 @@ icon and the OBS overlay server are all implemented with the Python standard lib
 - **A macro-remapped key doesn't click:** by design - see *Fair play*.
 - Errors explain themselves; the log is under *Settings > About > Log*.
 
+## Reporting a problem
+
+In Clickwave, open **Settings > About > Report a problem**. A short form opens on GitHub with your version and audio
+setup already filled in (your Windows user name is hidden) - just describe what happened and submit.
+Ideas are welcome too: [suggest a feature](https://github.com/buildsbyvic/Clickwave/issues/new?template=feature_request.yml).
+
 ## License
 
 Copyright © 2026 buildsbyvic
