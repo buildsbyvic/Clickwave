@@ -1,0 +1,20 @@
+# build output
+build/
+dist/
+*.spec.bak
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+# local backups of old versions (not part of the project)
+backup_v1/
+backup_v2/
+backup_v3/
+
+# editor / OS clutter
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
