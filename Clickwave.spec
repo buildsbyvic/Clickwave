@@ -1,6 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Build:  py -m PyInstaller --noconfirm Clickwave.spec
 
+import os, sys
+sys.path.insert(0, os.path.join(SPECPATH, 'tools'))
+import make_version_info
+make_version_info.write()   # version_info.txt always matches clickwave/common.py APP_VERSION
+
 
 a = Analysis(
     ['clickwave.py'],
@@ -32,7 +37,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,   # UPX-packed exes trigger far more antivirus false positives
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
