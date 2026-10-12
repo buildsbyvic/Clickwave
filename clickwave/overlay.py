@@ -77,10 +77,33 @@ def key_label(style, ident, default):
     return label if isinstance(label, str) and label.strip() else default
 
 
-def compute_layout(keys, style):
+def align_rows(items, how):
+    """Line every row (keys sharing a y) up to the left / center / right of the
+    widest row, in place. items: dicts with x, y, w. Rows stay intact; only
+    their horizontal offset changes."""
+    frac = {"left": 0.0, "center": 0.5, "right": 1.0}.get(how)
+    if frac is None or not items:
+        return
+    rows = {}
+    for k in items:
+        rows.setdefault(round(k["y"] * 2), []).append(k)
+    extents = {r: (min(k["x"] for k in ks), max(k["x"] + k["w"] for k in ks)) for r, ks in rows.items()}
+    left = min(lo for lo, _ in extents.values())
+    total = max(hi for _, hi in extents.values()) - left
+    for r, ks in rows.items():
+        lo, hi = extents[r]
+        shift = left + (total - (hi - lo)) * frac - lo
+        for k in ks:
+            k["x"] += shift
+
+
+def compute_layout(keys, style, normalize=True):
     """keys: [(ident, label)] -> [{id, label, x, y, w}] in key units
     (1 unit = one key plus one gap). Used by both the page and the
-    in-app designer, so the preview always matches OBS."""
+    in-app designer, so the preview always matches OBS.
+    Automatic layouts line each row up per style["align"]; a custom (dragged)
+    layout is left exactly as placed. normalize=False keeps absolute
+    positions (the designer uses it while a key is being dragged)."""
     layout = style["layout"]
     out = []
     x = y = 0.0
@@ -115,7 +138,9 @@ def compute_layout(keys, style):
                 if k["id"] not in style["positions"]:
                     k["x"], k["y"] = x, bottom
                     x += k["w"]
-    if out:
+    if layout != "custom":
+        align_rows(out, style["align"])
+    if out and normalize:
         mx, my = min(k["x"] for k in out), min(k["y"] for k in out)
         for k in out:
             k["x"] -= mx
@@ -132,6 +157,9 @@ PAGE = r"""<!doctype html>
   #wrap { display: inline-flex; gap: var(--gap); padding: var(--gap); }
   #wrap.below { flex-direction: column; }
   #wrap.above { flex-direction: column-reverse; }
+  #wrap.below.a-left, #wrap.above.a-left { align-items: flex-start; }
+  #wrap.below.a-center, #wrap.above.a-center { align-items: center; }
+  #wrap.below.a-right, #wrap.above.a-right { align-items: flex-end; }
   #wrap.right { flex-direction: row; align-items: flex-start; }
   #wrap.left  { flex-direction: row-reverse; align-items: flex-start; }
   #keys { position: relative; }
@@ -178,7 +206,7 @@ function render(m) {
   r.setProperty("--pressed", style.pressed_color || m.accent);
   r.setProperty("--text", style.text_color);
   r.setProperty("--border", style.border ? `${Math.max(1, size / 40)}px solid rgba(255,255,255,.14)` : "0");
-  wrap.className = style.stats_pos;
+  wrap.className = style.stats_pos + " a-" + style.align;
   keysEl.innerHTML = ""; keyEls = {};
   let maxX = 0, maxY = 0;
   for (const k of m.keys) {

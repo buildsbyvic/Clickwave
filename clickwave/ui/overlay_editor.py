@@ -23,6 +23,7 @@ class OverlayEditor(Dialog):
         self.style = ov.merge_style(app.settings["overlay_style"])
         self._rects = []       # (x1, y1, x2, y2, ident)
         self._drag = None
+        self._frozen = None    # (scale, ox, oy) held steady while a key is dragged
         self._hover = None
         b = self.body
 
@@ -154,6 +155,11 @@ class OverlayEditor(Dialog):
 
     def set(self, key, value):
         self.style[key] = value
+        if key == "align" and self.style["layout"] == "custom":
+            # A dragged layout isn't re-flowed automatically, so line its rows up once, here.
+            items = ov.compute_layout(self.keys(), self.style)
+            ov.align_rows(items, value)
+            self.style["positions"] = {k["id"]: [k["x"], k["y"]] for k in items}
         self._update_controls()
         self.commit()
 
@@ -205,11 +211,11 @@ class OverlayEditor(Dialog):
         self.cols.configure(cursor="hand2" if self.style["layout"] == "grid" else "arrow")
 
     # ---------------- preview geometry ----------------
-    def _content(self):
+    def _content(self, normalize=True):
         """Layout in base px (like the page), incl. stats block."""
         st = self.style
         size, gap = st["key_size"], st["gap"]
-        keys = ov.compute_layout(self.keys(), st)
+        keys = ov.compute_layout(self.keys(), st, normalize)
         kw = max([k["x"] * (size + gap) + k["w"] * size + (k["w"] - 1) * gap for k in keys] or [0])
         kh = max([k["y"] * (size + gap) + size for k in keys] or [0])
         stats = st["stats"] if st["stats_pos"] != "hidden" else []
@@ -229,7 +235,8 @@ class OverlayEditor(Dialog):
             W, H = c.winfo_reqwidth(), c.winfo_reqheight()
         st = self.style
         size, gap = st["key_size"], st["gap"]
-        keys, kw, kh, stats, bw, bh, sw, sh = self._content()
+        dragging = bool(self._drag and self._drag[3] is not None and self._frozen)
+        keys, kw, kh, stats, bw, bh, sw, sh = self._content(normalize=not dragging)
         pos = st["stats_pos"]
         between = gap if (stats and keys) else 0
         if pos in ("left", "right"):
@@ -237,10 +244,15 @@ class OverlayEditor(Dialog):
         else:
             cw, ch = max(kw, sw), kh + between + sh
         cw, ch = cw + 2 * gap, ch + 2 * gap
-        margin = S(20)
-        scale = min((W - 2 * margin) / max(1, cw), (H - 2 * margin) / max(1, ch), 2.0)
-        ox = (W - cw * scale) / 2 + gap * scale
-        oy = (H - ch * scale) / 2 + gap * scale
+        if dragging:
+            # Freeze the view while a key is dragged so nothing rescales or shifts under the cursor.
+            scale, ox, oy = self._frozen
+        else:
+            margin = S(20)
+            scale = min((W - 2 * margin) / max(1, cw), (H - 2 * margin) / max(1, ch), 2.0)
+            ox = (W - cw * scale) / 2 + gap * scale
+            oy = (H - ch * scale) / 2 + gap * scale
+            self._frozen = (scale, ox, oy)
         if pos == "above":
             kx, ky, sx, sy = ox, oy + (sh + between) * scale, ox, oy
         elif pos == "left":
@@ -249,6 +261,12 @@ class OverlayEditor(Dialog):
             kx, ky, sx, sy = ox, oy, ox + (kw + between) * scale, oy
         else:
             kx, ky, sx, sy = ox, oy, ox, oy + (kh + between) * scale
+        if pos in ("above", "below"):
+            # keys block and stats block line up per the Align setting, like the page
+            f = {"left": 0.0, "center": 0.5, "right": 1.0}.get(st["align"], 0.5)
+            inner = max(kw, sw)
+            kx += (inner - kw) * f * scale
+            sx += (inner - sw) * f * scale
         self._scale, self._origin = scale, (kx, ky)
 
         key_fill = blend(PREVIEW_BG, st["key_color"], st["key_opacity"] / 100)
@@ -257,7 +275,8 @@ class OverlayEditor(Dialog):
         radius = min(st["radius"], size / 2) * scale
         font_px = max(6, int(size * 0.27 * st["font"] / 100 * scale))
         self._rects = []
-        for k in keys:
+        grabbed = self._drag[0] if self._drag else None
+        for k in sorted(keys, key=lambda k: k["id"] == grabbed):   # dragged key is drawn on top
             x1 = kx + k["x"] * (size + gap) * scale
             y1 = ky + k["y"] * (size + gap) * scale
             x2 = x1 + (k["w"] * size + (k["w"] - 1) * gap) * scale
@@ -291,7 +310,7 @@ class OverlayEditor(Dialog):
 
     # ---------------- interaction ----------------
     def _key_at(self, x, y):
-        for x1, y1, x2, y2, ident in self._rects:
+        for x1, y1, x2, y2, ident in reversed(self._rects):   # topmost key first
             if x1 <= x <= x2 and y1 <= y <= y2:
                 return ident
         return None
@@ -333,9 +352,17 @@ class OverlayEditor(Dialog):
             self.redraw()
 
     def _release(self, e):
-        if self._drag and self._drag[3] is not None:
-            self.commit()
+        moved = bool(self._drag and self._drag[3] is not None)
         self._drag = None
+        if moved:
+            # Re-anchor the arrangement at the top-left now that the drag is over.
+            pos = self.style["positions"]
+            if pos:
+                mx, my = min(p[0] for p in pos.values()), min(p[1] for p in pos.values())
+                for p in pos.values():
+                    p[0] -= mx
+                    p[1] -= my
+            self.commit()
 
     def _right(self, e):
         ident = self._key_at(e.x, e.y)
