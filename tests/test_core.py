@@ -10,7 +10,9 @@ import unittest
 import wave
 import zipfile
 
-from tests import _env  # noqa: F401  (must come before any clickwave import)
+from tests import _env  # must come before any clickwave import
+
+assert _env.ROOT
 
 from clickwave import errors, inputs, overlay, settings, slicer, sounds, updates
 from clickwave.decode import DecodeError

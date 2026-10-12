@@ -1,0 +1,60 @@
+name: Release
+
+# Runs when a tag like v4.2.1 is pushed (or a release is created on github.com with a new tag).
+# Builds Clickwave.exe on GitHub's runners, so the file is reproducible from this source,
+# then attaches it to the release together with its SHA256 and a build attestation.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write        # upload release assets
+  id-token: write        # sign the attestation
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Check the tag matches APP_VERSION
+        shell: python
+        run: |
+          import os, re, sys
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          src = open("clickwave/common.py", encoding="utf-8").read()
+          version = re.search(r'^APP_VERSION\s*=\s*"([0-9.]+)"', src, re.M).group(1)
+          if tag != version:
+              sys.exit(f"Tag v{tag} does not match APP_VERSION {version} in clickwave/common.py")
+      - name: Lint and test
+        run: |
+          python -m pyflakes clickwave tests tools
+          python -m unittest discover -s tests -t . -v
+      - name: Build
+        run: python -m PyInstaller --noconfirm Clickwave.spec
+      - name: SHA256
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist\Clickwave.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Clickwave.exe" | Out-File -Encoding ascii dist\SHA256SUMS.txt
+          Get-Content dist\SHA256SUMS.txt
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/Clickwave.exe
+      - name: Attach to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME --title "Clickwave $env:GITHUB_REF_NAME" --generate-notes
+          }
+          gh release upload $env:GITHUB_REF_NAME dist\Clickwave.exe dist\SHA256SUMS.txt --clobber

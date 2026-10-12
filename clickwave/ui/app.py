@@ -547,9 +547,10 @@ class App:
         fair = tk.Frame(inner, bg=T.card)
         fair.pack(fill="x", pady=(S(12), 0))
         label(fair, "Fair play", font="small_semi").pack(anchor="w")
-        label(fair, "Clicks only play for physical key and mouse presses, at the moment they happen. "
-                    "Input simulated by macros or bots is ignored, packs can't add delay (silence before "
-                    "a click is trimmed), and previews never reach the stream output.",
+        label(fair, "Clicks play for key and mouse presses at the moment they happen. Software-simulated "
+                    "input (macros, bots, AutoHotkey) is ignored, packs can't add delay (silence before "
+                    "a click is trimmed), and previews never reach the stream output. Hardware or "
+                    "driver-level injection can't be detected.",
               font="tiny", fg=T.faint, justify="left", wraplength=S(330)).pack(anchor="w", pady=(S(2), 0))
         label(inner, "Settings, packs and the log live in %APPDATA%\\Clickwave.",
               font="tiny", fg=T.faint).pack(anchor="w", pady=(S(10), 0))
@@ -1676,7 +1677,7 @@ class App:
             return
         lats = [d.latency_ms for d in self.engine._devices if getattr(d, "latency_ms", None)]
         if self.audio.backend == "wasapi":
-            text = f"WASAPI · ~{max(lats):.0f} ms" if lats else "WASAPI"
+            text = f"WASAPI · engine ~{max(lats):.0f} ms" if lats else "WASAPI"
         else:
             text = "waveOut (compatibility)"
         self.w["latency"].config(text=text)

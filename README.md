@@ -21,7 +21,7 @@ viewers hear your clicks again without your mic ever being involved.
 ## Features
 
 **Clicks that feel real**
-- ~10 ms latency (WASAPI), every click its own voice so spam never stutters
+- ~10 ms engine latency (WASAPI device period), every click its own voice so spam never stutters
 - Only the keys / mouse buttons you choose make sound - held keys don't repeat
 - **Spam dynamics** - fast taps automatically play softer clicks, like a real switch (uses the pack's soft clicks or generates them)
 - Release clicks, pitch variation, humanize, per-input pack / level / stereo pan (P1 left, P2 right)
@@ -44,16 +44,34 @@ viewers hear your clicks again without your mic ever being involved.
 
 ## Fair play
 
-Clickwave is designed so it **can't** be used to fake a run:
+Clickwave is built to make it hard to fake a run by accident or on purpose:
 
-- **Only physical presses make clicks.** Input simulated by software - bots, macro tools, AutoHotkey, `SendInput` -
-  is ignored entirely: no sound, no overlay key, no CPS. (Hardware macro pads that send real key presses work normally.)
+- **Software-simulated input is ignored** (macros, bots, AutoHotkey, `SendInput`): no sound, no overlay key,
+  no CPS. Hardware macro pads that send real key presses work normally.
 - **No delay is possible.** There's no offset setting, and silence before a clip's attack is trimmed when a pack
   loads, so every click starts within ~2 ms of the press.
 - **Previews never reach the stream.** Test buttons and pack previews play on your speakers only; the stream device
   test is limited to one click per second.
 
 Hotkeys still accept macro input (a Stream Deck toggling Clickwave isn't cheating).
+
+**Limits, stated plainly:** Windows marks software-injected input, which is what Clickwave filters on. Input
+injected by a hardware device or a kernel driver looks like a real keyboard and can't be told apart. Clickwave is
+also only an audio source: how well clicks line up with your video depends on your OBS and audio-device sync offsets,
+which are outside the app.
+
+## FAQ
+
+**Is this a clickbot?** No. It only reacts to real presses and never creates input. Geometry Dash bots don't touch
+OS-level input, so Clickwave stays silent for them.
+
+**Why does my antivirus warn about it?** The exe is built with PyInstaller from a Python script, a packaging style
+that unsigned-software scanners often flag. It's a false positive. You can check the SHA256 listed with each
+release, compare the build attestation on GitHub, or build it yourself from this source. Code signing is planned.
+
+**Does it slow my input?** No. Clickwave only observes presses and passes them straight through; it never blocks or
+changes them. Starting a click costs well under a millisecond of work per press, and the audio engine itself runs
+at about 10 ms (the WASAPI device period; the figure doesn't include your audio driver or OBS).
 
 ## Download & run
 
@@ -74,13 +92,14 @@ Clickwave tells you if it's missing.
 Requires Python 3.10+ on Windows.
 
 ```bash
-py -m pip install -r requirements.txt pyinstaller
+py -m pip install -r requirements-dev.txt
 py clickwave.py                                  # run from source
+py -m unittest discover -s tests -t .            # run the tests
 py -m PyInstaller --noconfirm Clickwave.spec     # build dist\Clickwave.exe
 py tools\make_icon.py                            # re-render the logo / icon (optional)
 ```
 
-Only one third-party package (`pynput`). Audio output (WASAPI / waveOut), decoding (Media Foundation), the tray
+Only one third-party package at runtime (`pynput`, pinned). Audio output (WASAPI / waveOut), decoding (Media Foundation), the tray
 icon and the OBS overlay server are all implemented with the Python standard library + `ctypes`.
 
 ## Project layout
