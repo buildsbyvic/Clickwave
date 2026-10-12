@@ -66,6 +66,8 @@ GLOBAL_DEFAULTS = {
     "overlay": False,
     "overlay_port": 24730,
     "overlay_style": {},        # see overlay.DEFAULT_STYLE
+    "overlay_token": "",        # random secret in the overlay URL (generated on first launch)
+    "overlay_url_notice": False,  # show the "your OBS URL changed" note until the new URL is copied
     "stats_files": False,
     # appearance
     "theme": "dark",

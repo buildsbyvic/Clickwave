@@ -12,6 +12,7 @@ source's width/height instead of stretching it.
 """
 
 import copy
+import hmac
 import json
 import os
 import queue
@@ -236,7 +237,7 @@ function setStats(s) {
 }
 addEventListener("resize", fit);
 function connect() {
-  const es = new EventSource("/events");
+  const es = new EventSource(location.pathname.replace(/\/?$/, "/") + "events");
   es.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "state") render(m);
@@ -261,6 +262,7 @@ class OverlayServer:
         self._style = copy.deepcopy(DEFAULT_STYLE)
         self._accent = "#7b6cff"
         self._stats = {"cps": 0, "peak": 0, "clicks": 0}
+        self.token = ""
 
     @property
     def running(self):
@@ -268,7 +270,7 @@ class OverlayServer:
 
     @property
     def url(self):
-        return f"http://127.0.0.1:{self.port}/" if self.port else ""
+        return f"http://127.0.0.1:{self.port}/{self.token}/" if self.port else ""
 
     @property
     def style(self):
@@ -281,22 +283,39 @@ class OverlayServer:
         return {"type": "state", "keys": keys, "stats": dict(self._stats), "accent": self._accent,
                 "style": self._style}
 
-    def start(self, port):
+    def start(self, port, token=None):
         if self._httpd:
             return True
+        if token is not None:
+            self.token = token
         server = self
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
                 pass
 
+            def _host_ok(self):
+                # Blocks DNS-rebinding: only our own loopback address and port are accepted.
+                host = (self.headers.get("Host") or "").strip().lower()
+                return host in (f"127.0.0.1:{server.port}", f"localhost:{server.port}")
+
+            def _route(self):
+                """'/<token>/<name>' -> name, or None when the token or host is wrong."""
+                if not self._host_ok():
+                    return None
+                parts = urlparse(self.path).path.split("/")
+                if len(parts) < 2 or not server.token or not hmac.compare_digest(parts[1], server.token):
+                    return None
+                return "/" + "/".join(parts[2:]).rstrip("/") if len(parts) > 2 else "/"
+
             def do_GET(self):
-                path = urlparse(self.path).path
-                if path == "/events":
+                path = self._route()
+                if path is None:
+                    self._send(404, "text/plain", b"not found")
+                elif path == "/events":
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream")
                     self.send_header("Cache-Control", "no-cache")
-                    self.send_header("Access-Control-Allow-Origin", "*")
                     self.end_headers()
                     q = queue.Queue(maxsize=500)
                     with server._lock:

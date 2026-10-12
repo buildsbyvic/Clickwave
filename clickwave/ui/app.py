@@ -4,6 +4,7 @@ import copy
 import ctypes
 import os
 import queue
+import secrets
 import sys
 import time
 import tkinter as tk
@@ -88,6 +89,12 @@ class App:
         self.engine.rebuild()
         self.engine.start_listeners()
         self.overlay.set_style(self.settings["overlay_style"])
+        if not self.settings["overlay_token"]:
+            # First launch with the secret overlay link: existing users must re-copy the URL into OBS once.
+            self.settings["overlay_token"] = secrets.token_urlsafe(16)
+            self.settings["overlay_url_notice"] = bool(self.settings["onboarded"])
+            self.schedule_save()
+        self.overlay.token = self.settings["overlay_token"]
         if self.settings["overlay"]:
             self.overlay.start(self.settings["overlay_port"])
 
@@ -615,6 +622,10 @@ class App:
                       wraplength=S(320), justify="left",
                       fg=T.warn).pack(anchor="w", pady=(S(6), 0))
             return
+        if self.settings["overlay_url_notice"]:
+            label(box, "⚠ The overlay link changed: it now has a private key so other websites can't read "
+                       "it. Copy it again into your OBS Browser source once.", font="tiny", wraplength=S(320),
+                  justify="left", fg=T.warn).pack(anchor="w", pady=(S(6), 0))
         row = tk.Frame(box, bg=T.card)
         row.pack(fill="x", pady=(S(8), 0))
         url = tk.Entry(row, font=F["small"], bg=T.raised, fg=T.text, relief="flat", bd=S(5),
@@ -661,6 +672,10 @@ class App:
         self.root.clipboard_clear()
         self.root.clipboard_append(self.overlay.url)
         self.notify_inline("Overlay URL copied - paste it into an OBS Browser source")
+        if self.settings["overlay_url_notice"]:
+            self.settings["overlay_url_notice"] = False
+            self.schedule_save()
+            self.build_overlay_box()
 
     def open_stats_folder(self):
         os.makedirs(STATS_DIR, exist_ok=True)
