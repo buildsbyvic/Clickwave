@@ -65,6 +65,7 @@ GLOBAL_DEFAULTS = {
     # stream overlay
     "overlay": False,
     "overlay_port": 24730,
+    "overlay_style": {},        # see overlay.DEFAULT_STYLE
     "stats_files": False,
     # appearance
     "theme": "dark",

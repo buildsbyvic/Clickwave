@@ -87,6 +87,7 @@ class App:
         self.apply_devices()
         self.engine.rebuild()
         self.engine.start_listeners()
+        self.overlay.set_style(self.settings["overlay_style"])
         if self.settings["overlay"]:
             self.overlay.start(self.settings["overlay_port"])
 
@@ -624,8 +625,13 @@ class App:
         RoundedButton(row, "", self.copy_overlay_url, height=30, icon=I.copy).pack(side="left", padx=(S(6), 0))
         RoundedButton(row, "", lambda: winutil.open_path(self.overlay.url), height=30, icon=I.open).pack(
             side="left", padx=(S(6), 0))
-        label(box, "In OBS: Sources > + > Browser, paste the URL, size 600 x 220. "
-                   "Add ?keys=0, ?cps=0, ?scale=1.5 or ?layout=column to customize it.",
+        custom = tk.Frame(box, bg=T.card)
+        custom.pack(fill="x", pady=(S(8), 0))
+        RoundedButton(custom, "Customize overlay\u2026", self.open_overlay_editor, height=32, font=F["small"],
+                      variant="primary").pack(side="left")
+        label(box, "In OBS: Sources > + > Browser, paste the URL. To make it bigger, change the source's "
+                   "Width/Height in its properties instead of dragging the corners - it redraws sharp at any size. "
+                   "Changes you make in Customize show up in OBS instantly.",
               font="tiny", fg=T.faint, justify="left", wraplength=S(320)).pack(anchor="w", pady=(S(6), 0))
 
     def on_overlay(self, value):
@@ -635,6 +641,21 @@ class App:
         else:
             self.overlay.stop()
         self.build_overlay_box()
+
+    def open_overlay_editor(self):
+        from .overlay_editor import OverlayEditor
+        OverlayEditor(self)
+
+    def set_overlay_style(self, style):
+        self.settings["overlay_style"] = style
+        self.overlay.set_style(style)
+        self.schedule_save()
+
+    def accent_color(self):
+        return T.accent
+
+    def open_url(self, url):
+        winutil.open_path(url)
 
     def copy_overlay_url(self):
         self.root.clipboard_clear()

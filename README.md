@@ -29,7 +29,7 @@ viewers hear your clicks again without your mic ever being involved.
 **Built for streaming**
 - Separate outputs and levels for *you* and *the stream* (VB-CABLE / Voicemeeter auto-detected)
 - "Mute myself" hotkey - the stream keeps hearing clicks
-- **Stream overlay** - a live input display + CPS counter as an OBS Browser source, plus text-file stats
+- **Stream overlay** - a live input display + CPS counter as an OBS Browser source, with a built-in designer: drag keys into any layout, rename or widen them, pick sizes and colors, choose which stats show and where. Changes appear in OBS instantly and it stays sharp at any size
 - Test button per output device to confirm OBS hears it
 
 **Any sound you want**
