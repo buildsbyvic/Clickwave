@@ -154,8 +154,20 @@ class OverlayEditor(Dialog):
 
     def set(self, key, value):
         self.style[key] = value
+        if key == "align" and self.style["layout"] == "custom":
+            self._align_custom(value)
         self._update_controls()
         self.commit()
+
+    def _align_custom(self, align):
+        """Custom positions are stored, so alignment rewrites them: each row
+        of keys snaps to the left / center / right of the widest row."""
+        st = self.style
+        items = [k for k in ov.compute_layout(self.keys(), st) if k["id"] in st["positions"]]
+        ov.align_rows(items, align)
+        for k in items:
+            st["positions"][k["id"]] = [round(k["x"] * 4) / 4, k["y"]]
+        self._normalize_positions()
 
     def commit(self):
         self.app.set_overlay_style(copy.deepcopy(self.style))
@@ -249,6 +261,11 @@ class OverlayEditor(Dialog):
             kx, ky, sx, sy = ox, oy, ox + (kw + between) * scale, oy
         else:
             kx, ky, sx, sy = ox, oy, ox, oy + (kh + between) * scale
+        if pos in ("above", "below", "hidden") or not stats:
+            inner = max(kw, sw)
+            lead = {"left": 0, "center": 0.5, "right": 1}[st["align"]]
+            kx += (inner - kw) * lead * scale
+            sx += (inner - sw) * lead * scale
         self._scale, self._origin = scale, (kx, ky)
 
         key_fill = blend(PREVIEW_BG, st["key_color"], st["key_opacity"] / 100)
@@ -330,10 +347,30 @@ class OverlayEditor(Dialog):
         ny = round((start[1] + (e.y - y0) / unit) / SNAP) * SNAP
         if [nx, ny] != st["positions"].get(ident):
             st["positions"][ident] = [nx, ny]
+            # Dragged past the left/top edge: push everything else over instead
+            # of letting it go off-canvas, and rebase the drag so it keeps tracking.
+            shift = self._normalize_positions(only_negative=True)
+            if shift != (0, 0):
+                start[0] += shift[0]
+                start[1] += shift[1]
             self.redraw()
+
+    def _normalize_positions(self, only_negative=False):
+        """Shift custom positions so the top-left key sits at 0,0."""
+        pos = self.style["positions"]
+        keys = [i for i, _ in self.keys() if i in pos]
+        if not keys:
+            return (0, 0)
+        mx, my = min(pos[i][0] for i in keys), min(pos[i][1] for i in keys)
+        if only_negative:
+            mx, my = min(mx, 0), min(my, 0)
+        for i in pos:
+            pos[i] = [pos[i][0] - mx, pos[i][1] - my]
+        return (-mx, -my)
 
     def _release(self, e):
         if self._drag and self._drag[3] is not None:
+            self._normalize_positions()
             self.commit()
         self._drag = None
 

@@ -115,12 +115,36 @@ def compute_layout(keys, style):
                 if k["id"] not in style["positions"]:
                     k["x"], k["y"] = x, bottom
                     x += k["w"]
-    if out:
+    if out and layout != "custom":
+        # Custom positions are kept exactly as placed (the designer normalizes
+        # them on drop); shifting here would make every other key jump when
+        # the left-most one is dragged away.
         mx, my = min(k["x"] for k in out), min(k["y"] for k in out)
         for k in out:
             k["x"] -= mx
             k["y"] -= my
+        align_rows(out, style["align"])
     return out
+
+
+def align_rows(items, align):
+    """Align each row of keys (same y) to the left / center / right of the
+    widest row, preserving spacing inside the row. Mutates items' x."""
+    if not items or align not in ("left", "center", "right"):
+        return items
+    base = min(k["x"] for k in items)
+    total = max(k["x"] + k["w"] for k in items) - base
+    rows = {}
+    for k in items:
+        rows.setdefault(round(k["y"] * 100), []).append(k)
+    for row in rows.values():
+        lo = min(k["x"] for k in row)
+        width = max(k["x"] + k["w"] for k in row) - lo
+        spare = max(0.0, total - width)
+        shift = 0.0 if align == "left" else spare / 2 if align == "center" else spare
+        for k in row:
+            k["x"] = k["x"] - lo + base + shift
+    return items
 
 
 PAGE = r"""<!doctype html>
@@ -130,8 +154,8 @@ PAGE = r"""<!doctype html>
     font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
   #stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
   #wrap { display: inline-flex; gap: var(--gap); padding: var(--gap); }
-  #wrap.below { flex-direction: column; }
-  #wrap.above { flex-direction: column-reverse; }
+  #wrap.below { flex-direction: column; align-items: var(--alignx); }
+  #wrap.above { flex-direction: column-reverse; align-items: var(--alignx); }
   #wrap.right { flex-direction: row; align-items: flex-start; }
   #wrap.left  { flex-direction: row-reverse; align-items: flex-start; }
   #keys { position: relative; }
@@ -178,6 +202,7 @@ function render(m) {
   r.setProperty("--pressed", style.pressed_color || m.accent);
   r.setProperty("--text", style.text_color);
   r.setProperty("--border", style.border ? `${Math.max(1, size / 40)}px solid rgba(255,255,255,.14)` : "0");
+  r.setProperty("--alignx", {left: "flex-start", right: "flex-end"}[style.align] || "center");
   wrap.className = style.stats_pos;
   keysEl.innerHTML = ""; keyEls = {};
   let maxX = 0, maxY = 0;
