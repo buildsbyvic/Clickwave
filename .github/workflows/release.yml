@@ -1,28 +1,31 @@
 name: Release
 
 # Runs when a tag like v4.2.1 is pushed (or a release is created on github.com with a new tag).
-# Builds Clickwave.exe on GitHub's runners, so the file is reproducible from this source,
-# then attaches it to the release together with its SHA256 and a build attestation.
+# The exe is built on GitHub's runners (not on a personal PC), launch-tested, hashed and attested,
+# then attached to the release. The attestation proves WHERE and FROM WHICH commit the file was
+# built; PyInstaller output is not bit-for-bit reproducible, so a self-built exe has a different hash.
+#
+# Two jobs on purpose: "build" runs the project's code and dependencies with read-only access;
+# "publish" has the write permissions but only handles the finished file.
+# Actions are pinned to commit SHAs; Python dependencies come from requirements-lock.txt (hash-checked).
 
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write        # upload release assets
-  id-token: write        # sign the attestation
-  attestations: write
+  contents: read
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: python -m pip install -r requirements-dev.txt
+          python-version: "3.14"
+      - name: Install dependencies (hash-checked)
+        run: python -m pip install --require-hashes -r requirements-lock.txt
       - name: Check the tag matches APP_VERSION
         shell: python
         run: |
@@ -38,23 +41,53 @@ jobs:
           python -m unittest discover -s tests -t . -v
       - name: Build
         run: python -m PyInstaller --noconfirm Clickwave.spec
+      - name: Launch the built exe (hidden window, throwaway APPDATA)
+        shell: pwsh
+        run: |
+          $env:APPDATA = Join-Path $env:RUNNER_TEMP "selftest-appdata"
+          New-Item -ItemType Directory -Force $env:APPDATA | Out-Null
+          $p = Start-Process dist\Clickwave.exe -ArgumentList "--selftest" -PassThru -Wait
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:APPDATA\Clickwave\clickwave.log" -ErrorAction SilentlyContinue
+            throw "Clickwave.exe --selftest failed (exit code $($p.ExitCode))"
+          }
+          "Selftest OK"
       - name: SHA256
         shell: pwsh
         run: |
           $hash = (Get-FileHash dist\Clickwave.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  Clickwave.exe" | Out-File -Encoding ascii dist\SHA256SUMS.txt
           Get-Content dist\SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-files
+          path: |
+            dist/Clickwave.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the release / upload assets
+      id-token: write        # sign the attestation
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: release-files
+          path: dist
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-path: dist/Clickwave.exe
       - name: Attach to the release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release view $env:GITHUB_REF_NAME 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:GITHUB_REF_NAME --title "Clickwave $env:GITHUB_REF_NAME" --generate-notes
-          }
-          gh release upload $env:GITHUB_REF_NAME dist\Clickwave.exe dist\SHA256SUMS.txt --clobber
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --title "Clickwave $GITHUB_REF_NAME" --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/Clickwave.exe dist/SHA256SUMS.txt --clobber

@@ -14,6 +14,10 @@ from tests import _env  # must come before any clickwave import
 
 assert _env.ROOT
 
+import queue
+import types
+
+from clickwave import engine as engine_mod
 from clickwave import errors, inputs, overlay, settings, slicer, sounds, updates
 from clickwave.decode import DecodeError
 
@@ -182,6 +186,7 @@ class OverlayTests(unittest.TestCase):
             self.assertEqual(status("/secret-token/state"), (200, None))
             self.assertEqual(status("/state")[0], 404)
             self.assertEqual(status("/wrong/state")[0], 404)
+            self.assertEqual(status("/%C3%A9%E2%82%AC/state")[0], 404)     # non-ASCII token must not crash
             self.assertEqual(status("/secret-token/state", host="evil.example")[0], 404)
             self.assertTrue(srv.url.endswith("/secret-token/"))
         finally:
@@ -221,6 +226,61 @@ class ErrorTests(unittest.TestCase):
     def test_unknown_falls_back(self):
         title, summary, _ = errors.friendly(ValueError("weird"), title="Import failed")
         self.assertEqual((title, summary), ("Import failed", "weird"))
+
+
+class FairPlayTests(unittest.TestCase):
+    """Software-injected input must never produce a click, a hit event or a count."""
+
+    def setUp(self):
+        audio = types.SimpleNamespace(close_all=lambda: None, tidy=lambda: None)
+        self.events = queue.Queue()
+        self.eng = engine_mod.ClickEngine(self.events, audio)
+        self.eng.watched = frozenset({"key:a", "mouse:left"})
+        self.eng.running = True
+        self.played = []
+        self.eng._play = lambda ident, kind, tier: self.played.append((ident, kind))
+
+    def tearDown(self):
+        self.eng.shutdown()
+
+    def kinds(self):
+        out = []
+        while not self.events.empty():
+            out.append(self.events.get_nowait()[0])
+        return out
+
+    def test_real_press_plays(self):
+        self.eng._handle("key:a", True)
+        self.eng._handle("key:a", False)
+        self.assertEqual(self.played, [("key:a", "press"), ("key:a", "release")])
+        self.assertEqual(self.eng.total_presses, 1)
+
+    def test_injected_keyboard_is_ignored(self):
+        self.eng._kb_injected = True
+        self.eng._handle("key:a", True)
+        self.eng._handle("key:a", False)
+        self.assertEqual(self.played, [])
+        self.assertEqual(self.eng.total_presses, 0)
+        self.assertEqual(self.eng.injected_ignored, 1)
+        self.assertNotIn("hit", self.kinds())
+
+    def test_injected_mouse_is_ignored_but_keyboard_is_not_affected(self):
+        self.eng._mouse_injected = True
+        self.eng._handle("mouse:left", True)
+        self.assertEqual(self.played, [])
+        self.eng._handle("key:a", True)         # the keyboard flag is separate
+        self.assertEqual(self.played, [("key:a", "press")])
+
+    def test_filter_reads_windows_injected_flag(self):
+        self.eng._kb_filter(0, types.SimpleNamespace(flags=engine_mod.LLKHF_INJECTED))
+        self.assertTrue(self.eng._kb_injected)
+        self.eng._kb_filter(0, types.SimpleNamespace(flags=0))
+        self.assertFalse(self.eng._kb_injected)
+
+    def test_not_listening_is_silent(self):
+        self.eng.running = False
+        self.eng._handle("key:a", True)
+        self.assertEqual(self.played, [])
 
 
 def write_wav(path, samples, rate=RATE):

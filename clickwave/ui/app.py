@@ -1975,11 +1975,36 @@ class App:
         self.root.after(250, self._slow_tick)
 
 
+def selftest():
+    """Headless launch check for CI (`Clickwave.exe --selftest`): builds the whole UI with the window
+    hidden, visits every tab, quits. Run it with APPDATA pointing at a throwaway folder."""
+    winutil.old_version_running = lambda: False
+    root = tk.Tk()
+    root.withdraw()
+    set_scale(1.0)
+    init_fonts(root)
+    problems = []
+    root.report_callback_exception = lambda *exc: problems.append(exc[1])
+    app = App(root)
+    for tab in (0, 1, 2, 0):
+        app.show_tab(tab)
+        root.update()
+    app.quit()
+    return 1 if problems else 0
+
+
 def main():
     setup_logging()
     if sys.platform != "win32":
         print("Clickwave only runs on Windows.")
         return
+    if "--selftest" in sys.argv:
+        try:
+            code = selftest()
+        except Exception:
+            log.exception("Selftest failed")
+            code = 1
+        os._exit(code)
     mutex = winutil.acquire_single_instance()
     if mutex is None:
         return

@@ -28,7 +28,7 @@ viewers hear your clicks again without your mic ever being involved.
 
 **Built for streaming**
 - **Stream routing:** the default is OBS *Application Audio Capture* of Clickwave.exe, so no virtual cable is needed. Virtual-cable routing (VB-CABLE / Voicemeeter auto-detected, separate outputs and levels for *you* and *the stream*) is still there under *Settings > Audio output* for setups that need it
-- "Mute myself" hotkey - the stream keeps hearing clicks
+- "Mute myself" hotkey (virtual-cable routing only: the stream keeps hearing clicks while you don't)
 - **Stream overlay** - a live input display + CPS counter as an OBS Browser source, with a built-in designer: drag keys into any layout, rename or widen them, pick sizes and colors, choose which stats show and where. Changes appear in OBS instantly and it stays sharp at any size
 - Test button per output device to confirm OBS hears it
 
@@ -49,7 +49,7 @@ Clickwave is built to make it hard to fake a run by accident or on purpose:
 - **Software-simulated input is ignored** (macros, bots, AutoHotkey, `SendInput`): no sound, no overlay key,
   no CPS. Hardware macro pads that send real key presses work normally.
 - **No delay is possible.** There's no offset setting, and silence before a clip's attack is trimmed when a pack
-  loads, so every click starts within ~2 ms of the press.
+  loads, so a pack can't hide a delay in its own files. (The sound then takes the audio engine's ~10 ms, see below.)
 - **Previews never reach the stream.** Test buttons and pack previews play on your speakers only; the stream device
   test is limited to one click per second.
 
@@ -65,13 +65,22 @@ which are outside the app.
 **Is this a clickbot?** No. It only reacts to real presses and never creates input. Geometry Dash bots don't touch
 OS-level input, so Clickwave stays silent for them.
 
-**Why does my antivirus warn about it?** The exe is built with PyInstaller from a Python script, a packaging style
-that unsigned-software scanners often flag. It's a false positive. You can check the SHA256 listed with each
-release, compare the build attestation on GitHub, or build it yourself from this source. Code signing is planned.
+**Why does my antivirus warn about it?** Warnings on unsigned, PyInstaller-packaged apps that listen to the keyboard
+are usually heuristic ("looks like a keylogger"), not a match against known malware. You can't take that on trust,
+so check it: the SHA256 is attached to every release, GitHub's build attestation proves which commit and workflow
+produced the file, and the whole source is here. Code signing is planned.
 
-**Does it slow my input?** No. Clickwave only observes presses and passes them straight through; it never blocks or
-changes them. Starting a click costs well under a millisecond of work per press, and the audio engine itself runs
-at about 10 ms (the WASAPI device period; the figure doesn't include your audio driver or OBS).
+```
+gh attestation verify Clickwave.exe -R buildsbyvic/Clickwave
+```
+
+(The exe is built by GitHub Actions; PyInstaller builds aren't bit-for-bit reproducible, so an exe you build yourself
+will have a different hash.)
+
+**Does it slow my input?** No. Clickwave only observes presses and passes them straight through; it never changes
+them. Starting a click is done inside the input hook and costs well under a millisecond (about 0.4 ms measured per
+press), and the audio engine itself runs at about 10 ms (the WASAPI device period; the figure doesn't include your
+audio driver or OBS).
 
 ## Download & run
 

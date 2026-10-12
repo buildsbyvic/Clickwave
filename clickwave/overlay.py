@@ -304,7 +304,9 @@ class OverlayServer:
                 if not self._host_ok():
                     return None
                 parts = urlparse(self.path).path.split("/")
-                if len(parts) < 2 or not server.token or not hmac.compare_digest(parts[1], server.token):
+                # bytes on both sides: compare_digest raises TypeError on non-ASCII str
+                if len(parts) < 2 or not server.token or not hmac.compare_digest(
+                        parts[1].encode("utf-8", "replace"), server.token.encode("utf-8")):
                     return None
                 return "/" + "/".join(parts[2:]).rstrip("/") if len(parts) > 2 else "/"
 
