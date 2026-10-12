@@ -143,7 +143,10 @@ class App:
             else:
                 monitor = found
         st = s["stream_device"]
-        if st == "auto":
+        app_mode = s["stream_mode"] == "app"
+        if app_mode:
+            stream = None            # OBS captures Clickwave's own audio; no second device
+        elif st == "auto":
             stream = a.find_cable()
         elif st is None:
             stream = None
@@ -152,7 +155,7 @@ class App:
             if stream is None:
                 notes.append(("Selected stream device isn't connected.", T.warn))
         keys = []
-        if s["hear_myself"] and monitor:
+        if (app_mode or s["hear_myself"]) and monitor:    # app capture needs the app to be playing somewhere
             keys.append(monitor)
         if s["send_to_stream"] and stream and stream not in keys:
             keys.append(stream)
@@ -167,9 +170,11 @@ class App:
         self.output_keys = keys
         if not keys:
             notes.append(("No output enabled - clicks are muted.", T.warn))
+        elif app_mode:
+            notes.append(("✓ Ready for OBS Application Audio Capture", T.ok))
         elif s["send_to_stream"] and stream:
             notes.append(("✓ Routing clicks to the stream device", T.ok))
-        elif st == "auto" and stream is None and s["send_to_stream"]:
+        elif st == "auto" and stream is None and s["send_to_stream"] and not app_mode:
             notes.append(("No virtual cable found (VB-CABLE / Voicemeeter).", T.faint))
         self.output_note = notes[0] if notes else ("", T.faint)
 
@@ -445,16 +450,29 @@ class App:
                       "legacy" if s["backend"] == "legacy" else "auto", self.on_backend, height=30)
         dd.configure(width=S(190))
         dd.pack(side="right")
+        row = self.row(inner, "Stream routing", pady=(S(10), 0))
+        mode = Dropdown(row, [("app", "OBS app audio capture"), ("cable", "Virtual cable (advanced)")],
+                        s["stream_mode"], self.on_stream_mode, height=30)
+        mode.configure(width=S(190))
+        mode.pack(side="right")
         separator(inner).pack(fill="x", pady=(S(12), 0))
-        self.toggle_row(inner, "Hear clicks myself", "hear_myself", "Your speakers / headphones",
-                        command=lambda v: self.on_devices_changed())
-        self.w["monitor_dd"] = self.device_row(inner, self.on_monitor, "monitor")
-        self.level_slider(inner, "My level", "monitor_level")
-        separator(inner).pack(fill="x", pady=(S(12), 0))
-        self.toggle_row(inner, "Send clicks to stream", "send_to_stream", "Virtual cable that OBS captures",
-                        command=lambda v: self.on_devices_changed())
-        self.w["stream_dd"] = self.device_row(inner, self.on_stream, "stream")
-        self.level_slider(inner, "Stream level", "stream_level")
+        if s["stream_mode"] == "app":
+            label(inner, "Clicks play on the device below, and OBS captures Clickwave directly - no virtual cable "
+                         "needed. In OBS: Sources > + > Application Audio Capture (BETA), then choose "
+                         "Clickwave.exe. Needs OBS 28+ on Windows 10 2004 or newer.",
+                  font="tiny", fg=T.faint, justify="left", wraplength=S(330)).pack(anchor="w", pady=(S(8), 0))
+            self.w["monitor_dd"] = self.device_row(inner, self.on_monitor, "monitor")
+            self.level_slider(inner, "Level", "monitor_level")
+        else:
+            self.toggle_row(inner, "Hear clicks myself", "hear_myself", "Your speakers / headphones",
+                            command=lambda v: self.on_devices_changed())
+            self.w["monitor_dd"] = self.device_row(inner, self.on_monitor, "monitor")
+            self.level_slider(inner, "My level", "monitor_level")
+            separator(inner).pack(fill="x", pady=(S(12), 0))
+            self.toggle_row(inner, "Send clicks to stream", "send_to_stream", "Virtual cable that OBS captures",
+                            command=lambda v: self.on_devices_changed())
+            self.w["stream_dd"] = self.device_row(inner, self.on_stream, "stream")
+            self.level_slider(inner, "Stream level", "stream_level")
         foot = tk.Frame(inner, bg=T.card)
         foot.pack(fill="x", pady=(S(10), 0))
         self.w["output_status"] = label(foot, "", font="tiny", fg=T.faint, justify="left", wraplength=S(240))
@@ -1310,7 +1328,7 @@ class App:
         steps = [
             f"Press Start (or {hk} anywhere) to begin listening." if hk else "Press Start to begin listening.",
             "Add the keys and mouse buttons you play with under Watched inputs.",
-            "Streaming? Pick your virtual cable in Settings > Audio output.",
+            "Streaming? In OBS add Sources > Application Audio Capture and pick Clickwave.exe.",
             "Want other sounds? Import a pack or a recording on the Sounds tab.",
         ]
         for i, text in enumerate(steps, 1):
@@ -1519,6 +1537,9 @@ class App:
         elif action == "next_profile":
             self.next_profile()
         elif action == "mute_self":
+            if self.settings["stream_mode"] == "app":
+                self.notify("Not available with OBS app audio capture", T.warn)
+                return
             value = not self.settings["hear_myself"]
             self.settings["hear_myself"] = value
             self.on_devices_changed()
@@ -1542,6 +1563,10 @@ class App:
         self.w["monitor_dd"].set(s["monitor_device"], mon_opts)
         if s["monitor_device"] and a.find(s["monitor_device"]) is None:
             self.w["monitor_dd"].placeholder = f"{s['monitor_device']} (not connected)"
+        if "stream_dd" not in self.w:
+            self.w["output_status"].config(text=self.output_note[0], fg=self.output_note[1], cursor="")
+            self.update_latency()
+            return
         cable = a.name_of(a.find_cable()) if a.find_cable() else None
         st_opts = [("auto", f"Auto · {cable or 'no cable found'}"), (None, "None")] + self.device_options()
         self.w["stream_dd"].set(s["stream_device"], st_opts)
@@ -1567,7 +1592,7 @@ class App:
             f"Clickwave {APP_VERSION} ({'exe' if getattr(sys, 'frozen', False) else 'source'})",
             f"Windows {platform.version()} ({platform.machine()})",
             f"Audio: {a.backend}" + (f", ~{max(lats):.0f} ms" if lats else "") +
-            f" | outputs: {', '.join(outs) or 'none'} | {len(a.devices)} devices found",
+            f" | routing: {s['stream_mode']} | outputs: {', '.join(outs) or 'none'} | {len(a.devices)} devices found",
             f"Listening: {'yes' if e.running else 'no'} | inputs: {len(s.p('inputs'))} | pack: "
             f"{'custom' if s.p('pack') != 'Default' else 'Default'} | dynamics: {'on' if s.p('dynamics') else 'off'}"
             f" | app filter: {'on' if s.p('app_filter') else 'off'}",
@@ -1699,6 +1724,12 @@ class App:
     def on_monitor(self, value):
         self.settings["monitor_device"] = value
         self.on_devices_changed()
+
+    def on_stream_mode(self, value):
+        self.settings["stream_mode"] = value
+        self.on_devices_changed()
+        self.build_ui()
+        self.schedule_save()
 
     def on_stream(self, value):
         self.settings["stream_device"] = value

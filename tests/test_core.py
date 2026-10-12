@@ -103,6 +103,18 @@ class SettingsTests(unittest.TestCase):
             self.assertTrue(s.save())
             self.assertEqual(settings.Settings(path)["overlay_token"], "abc")
 
+    def test_stream_mode_default_and_migration(self):
+        with tempfile.TemporaryDirectory() as d:
+            fresh = settings.Settings(os.path.join(d, "none.json"))
+            self.assertEqual(fresh["stream_mode"], "app")          # new installs: OBS app capture
+            path = os.path.join(d, "old.json")
+            with open(path, "w") as f:
+                json.dump({"version": 3, "onboarded": True, "stream_device": "auto"}, f)
+            self.assertEqual(settings.Settings(path)["stream_mode"], "cable")   # existing setups keep the cable
+            with open(path, "w") as f:
+                json.dump({"version": 3, "stream_mode": "bogus"}, f)
+            self.assertEqual(settings.Settings(path)["stream_mode"], "app")
+
     def test_unreadable_file_is_kept(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "settings.json")

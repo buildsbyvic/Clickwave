@@ -45,7 +45,8 @@ GLOBAL_DEFAULTS = {
     # audio output
     "backend": "auto",          # auto | wasapi | legacy
     "hear_myself": True,
-    "send_to_stream": True,
+    "stream_mode": "app",       # "app" = OBS Application Audio Capture on Clickwave.exe | "cable" = virtual cable
+    "send_to_stream": True,     # cable mode only
     "monitor_device": None,     # None = system default, else device name
     "stream_device": "auto",    # "auto" | None | device name
     "monitor_level": 100,       # percent, applied on top of the volume
@@ -221,6 +222,8 @@ class Settings:
             loaded = migrate_v2(loaded)
         # Existing users (settings from an earlier version) skip the welcome card.
         loaded.setdefault("onboarded", True)
+        # ...and keep the virtual-cable routing they already set up.
+        loaded.setdefault("stream_mode", "cable")
 
         for key, default in GLOBAL_DEFAULTS.items():
             if key in ("profiles", "hotkeys"):
@@ -245,6 +248,8 @@ class Settings:
         self.data["hotkeys"] = hotkeys
         self.data["lifetime_clicks"] = max(0, int(self.data["lifetime_clicks"]))
         self.data["tab"] = max(0, min(2, int(self.data["tab"])))
+        if self.data["stream_mode"] not in ("app", "cable"):
+            self.data["stream_mode"] = "app"
         for key in ("monitor_level", "stream_level"):
             self.data[key] = max(0, min(150, int(self.data[key])))
         if isinstance(self.data["best_test"], int):

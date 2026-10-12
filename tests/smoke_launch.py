@@ -30,6 +30,10 @@ def main():
     for tab in (0, 1, 2, 0):
         app.show_tab(tab)
         root.update()
+    for mode in ("cable", "app"):       # both stream-routing layouts must build
+        app.on_stream_mode(mode)
+        app.show_tab(2)
+        root.update()
     app.on_theme("light")
     root.update()
     app.on_theme("dark")

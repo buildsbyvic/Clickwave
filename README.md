@@ -15,7 +15,7 @@ Streamers run noise suppression (NVIDIA Broadcast, RNNoise, noise gates) so thei
 filters erase key clicks, because a click is exactly the kind of sharp noise they're designed to remove. Turning the
 filters off makes your mic sound bad.
 
-Clickwave plays a click the instant you press a key, on its own clean audio path (e.g. a virtual cable into OBS), so
+Clickwave plays a click the instant you press a key, on its own clean audio path that OBS captures straight from Clickwave (or through a virtual cable), so
 viewers hear your clicks again without your mic ever being involved.
 
 ## Features
@@ -27,7 +27,7 @@ viewers hear your clicks again without your mic ever being involved.
 - Release clicks, pitch variation, humanize, per-input pack / level / stereo pan (P1 left, P2 right)
 
 **Built for streaming**
-- Separate outputs and levels for *you* and *the stream* (VB-CABLE / Voicemeeter auto-detected)
+- **Stream routing:** the default is OBS *Application Audio Capture* of Clickwave.exe, so no virtual cable is needed. Virtual-cable routing (VB-CABLE / Voicemeeter auto-detected, separate outputs and levels for *you* and *the stream*) is still there under *Settings > Audio output* for setups that need it
 - "Mute myself" hotkey - the stream keeps hearing clicks
 - **Stream overlay** - a live input display + CPS counter as an OBS Browser source, with a built-in designer: drag keys into any layout, rename or widen them, pick sizes and colors, choose which stats show and where. Changes appear in OBS instantly and it stays sharp at any size
 - Test button per output device to confirm OBS hears it
@@ -119,8 +119,10 @@ icon and the OBS overlay server are all implemented with the Python standard lib
 
 - **No sound:** is it *Listening*? Volume above 0? An output enabled in Settings? App filter off (or the game added)?
   Use the play button next to each output.
-- **OBS doesn't hear it:** turn on *Send clicks to stream*, press the stream device's play button, and add the virtual
-  cable as an audio input in OBS.
+- **OBS doesn't hear it:** in OBS add *Sources > + > Application Audio Capture (BETA)* and choose `Clickwave.exe`
+  (it appears in the list once Clickwave has played a sound; needs OBS 28+ and Windows 10 2004+). If you use a
+  virtual cable instead, switch *Stream routing* to *Virtual cable*, turn on *Send clicks to stream*, press the
+  stream device's play button, and add the cable as an audio input in OBS.
 - **A macro-remapped key doesn't click:** by design - see *Fair play*.
 - Errors explain themselves; the log is under *Settings > About > Log*.
 
