@@ -18,3 +18,7 @@ backup_v3/
 .idea/
 Thumbs.db
 desktop.ini
+
+# local dev notes and old ad-hoc test scripts
+dev/
+HANDOFF.md
