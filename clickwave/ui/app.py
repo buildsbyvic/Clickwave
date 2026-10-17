@@ -241,8 +241,15 @@ class App:
 
         holder = tk.Frame(outer, bg=T.bg)
         holder.pack(fill="both", expand=True)
+        # All pages are stacked in the holder and stay mapped; switching tabs just raises one. Hiding and
+        # re-showing a page made Tk re-lay-out and redraw every widget in it, which was visible.
         pages = [ScrollPage(holder) for _ in TABS]
+        for page in pages:
+            page.place(x=0, y=0, relwidth=1, relheight=1)
+            page._placed = None          # size last given to this page (None = follows the holder)
         self.w["pages"] = pages
+        self.w["holder"] = holder
+        holder.bind("<Configure>", self._fit_pages)
         for builder, page in zip((self.build_main, self.build_sounds, self.build_settings), pages):
             builder(page.inner)
         self.show_tab(s["tab"])
@@ -253,12 +260,34 @@ class App:
 
     def show_tab(self, index):
         self.settings["tab"] = index
-        for i, page in enumerate(self.w["pages"]):
-            if i == index:
-                page.pack(fill="both", expand=True)
-            else:
-                page.pack_forget()
+        self._sync_page(index)
+        self.w["pages"][index].tkraise()
         self.schedule_save()
+
+    def _sync_page(self, index):
+        """Give a page the holder's current size (does nothing when it already has it)."""
+        holder, page = self.w["holder"], self.w["pages"][index]
+        size = (holder.winfo_width(), holder.winfo_height())
+        if size[0] > 10 and page._placed != size:
+            page.place_configure(x=0, y=0, width=size[0], height=size[1], relwidth="", relheight="")
+            page._placed = size
+
+    def _fit_pages(self, _event=None):
+        """Window resized: resize the visible page now; the hidden ones catch up quietly afterwards,
+        one at a time, so dragging the window edge only pays for one page."""
+        if "pages" not in self.w:
+            return
+        if any(p._placed is None for p in self.w["pages"]):
+            for i in range(len(self.w["pages"])):      # first real size: pin every page to it
+                self._sync_page(i)
+            return
+        self._sync_page(self.settings["tab"])
+        self._after("pages", 250, self._catch_up_pages)
+
+    def _catch_up_pages(self):
+        pages = self.w.get("pages") or []
+        for n, i in enumerate(i for i in range(len(pages)) if i != self.settings["tab"]):
+            self.root.after(30 * (n + 1), lambda i=i: "pages" in self.w and self._sync_page(i))
 
     def card(self, page, title=None, first=False):
         card = Card(page)
@@ -1831,8 +1860,23 @@ class App:
         elif not want and current:
             winutil.set_autostart(False)
 
+    def reveal(self):
+        """Map the window. The first time, do it fully transparent until Tk has laid out and drawn every
+        page, so the user never watches the widgets appear one by one."""
+        root = self.root
+        if getattr(self, "_revealed", False):
+            root.deiconify()
+            return
+        self._revealed = True
+        try:
+            root.attributes("-alpha", 0.0)
+            root.deiconify()
+            root.update()
+        finally:
+            root.attributes("-alpha", 1.0)
+
     def show_window(self):
-        self.root.deiconify()
+        self.reveal()
         self.root.state("normal")
         self.root.lift()
         self.root.attributes("-topmost", True)
@@ -2065,6 +2109,6 @@ def main():
             root.deiconify()
             root.iconify()
     else:
-        root.deiconify()
+        app.reveal()
         winutil.style_title_bar(root, T.dark, T.bg, T.text)
     root.mainloop()
