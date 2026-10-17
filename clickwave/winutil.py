@@ -2,6 +2,7 @@
 
 import ctypes
 import os
+import re
 import sys
 import time
 from ctypes import wintypes
@@ -180,11 +181,15 @@ def recycle(*paths):
     return ok
 
 
+_LEGACY_COMMAND = re.compile(r"GD[ _]?Click[^\/\"]*\.exe|gd_click_gui\.py", re.I)
+
+
 def remove_legacy_autostart(key_path=RUN_KEY):
     """Drop the pre-rename "GD Click" startup entry (only if it really is
-    ours), so Windows doesn't launch the old version alongside Clickwave."""
+    ours), so Windows doesn't launch the old version alongside Clickwave.
+    Matches any exe named like "GD Click.exe" or "GD Click v3.1.exe"."""
     command = get_autostart("GD Click", key_path)
-    if command and ("GD Click.exe" in command or "gd_click_gui.py" in command):
+    if command and _LEGACY_COMMAND.search(command):
         set_autostart(False, "GD Click", key_path)
         log.info("Removed old GD Click startup entry")
         return True

@@ -2008,6 +2008,7 @@ def main():
     mutex = winutil.acquire_single_instance()
     if mutex is None:
         return
+    winutil.remove_legacy_autostart()   # first, so even a launch that bails out below stops the old app returning at boot
     if winutil.old_version_running():
         winutil.ask_old_version_to_show()
         winutil.message_box(

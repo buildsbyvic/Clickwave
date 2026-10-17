@@ -214,6 +214,42 @@ class UpdateAndInputTests(unittest.TestCase):
         self.assertEqual(inputs.input_label(None), "None")
 
 
+class LegacyAutostartTests(unittest.TestCase):
+    KEY = r"Software\ClickwaveUnitTest\Run"
+
+    def tearDown(self):
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.KEY, 0, winreg.KEY_SET_VALUE) as k:
+                winreg.DeleteValue(k, "GD Click")
+        except OSError:
+            pass
+        for path in (self.KEY, r"Software\ClickwaveUnitTest"):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+            except OSError:
+                pass
+
+    def put(self, command):
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, self.KEY) as k:
+            winreg.SetValueEx(k, "GD Click", 0, winreg.REG_SZ, command)
+
+    def test_removes_versioned_and_plain_old_exe(self):
+        from clickwave import winutil
+        for cmd in (r'"C:\x\backup_v3\GD Click v3.1.exe" --startup', r'"C:\x\GD Click.exe" --startup',
+                    r'"C:\py\pythonw.exe" "C:\x\gd_click_gui.py" --startup'):
+            self.put(cmd)
+            self.assertTrue(winutil.remove_legacy_autostart(self.KEY), cmd)
+            self.assertIsNone(winutil.get_autostart("GD Click", self.KEY))
+
+    def test_leaves_unrelated_entry_alone(self):
+        from clickwave import winutil
+        self.put(r'"C:\Tools\SomethingElse.exe"')
+        self.assertFalse(winutil.remove_legacy_autostart(self.KEY))
+        self.assertIsNotNone(winutil.get_autostart("GD Click", self.KEY))
+
+
 class ErrorTests(unittest.TestCase):
     def test_known_message(self):
         title, summary, fix = errors.friendly(OSError("[WinError 112] There is not enough space on the disk"))
